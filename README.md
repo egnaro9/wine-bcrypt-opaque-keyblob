@@ -46,4 +46,5 @@ the wrapper scripts themselves are convenience.
 
 Related: the same client pin revives Whisky, whose repo is archived; see
 [whisky-resurrection](https://github.com/egnaro9/whisky-resurrection).
-Posted as a comment on Gcenx/macOS_Wine_builds#159 as well.
+Posted as a comment on Gcenx/macOS_Wine_builds#159, and filed upstream as
+WineHQ bug 60214: https://bugs.winehq.org/show_bug.cgi?id=60214
