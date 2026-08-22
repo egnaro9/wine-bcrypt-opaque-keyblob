@@ -1,5 +1,13 @@
 # Steam on free Wine on macOS (2026)
 
+> **Correction (2026-08-22):** An earlier version of this repo claimed the missing bcrypt
+> OpaqueKeyBlob export was *the* cause of modern Steam login failure, and that only Apple's
+> D3DMetal could solve rendering. Both are corrected. The bcrypt gap is real but NOT proven to
+> be the login-blocker; Gcenx (maintainer of the macOS Wine packages) runs the *current* Steam
+> client with a rendering fix alone: a steamwebhelper wrapper forcing `--in-process-gpu` so DXMT
+> works. The free recipe below is still verified end to end.
+
+
 Steam login and Steam-DRM games working on a fully free Wine stack on Apple Silicon, with the
 root-cause diagnosis of why stock Wine cannot do it. Verified end to end on 2026-08-22 (macOS,
 M4): client login via QR, then a Steam-DRM game (The Wolf Among Us) running.
