@@ -1,3 +1,9 @@
+> **CORRECTION (2026-08-22):** The bcrypt OpaqueKeyBlob export gap is real and independently
+> valid, but it is NOT proven to be what breaks modern Steam login. The macOS Wine package
+> maintainer runs the current client with a rendering-only fix (DXMT + a steamwebhelper
+> --in-process-gpu wrapper). Treat this as a real bcrypt API-gap report, not a proven Steam
+> root cause.
+
 # WineHQ Bugzilla report (ready to file)
 
 **Product:** Wine  **Component:** bcrypt  **Version:** 11.15 (present since the post-11.0 PE-crypto rewrite; still in master 2026-08)
