@@ -1,0 +1,117 @@
+--- a/dlls/bcrypt/bcrypt_main.c
++++ b/dlls/bcrypt/bcrypt_main.c
+@@ -2676,8 +2676,43 @@
+                                SYMCRYPT_NUMBER_FORMAT_MSB_FIRST, 0 )) return STATUS_INTERNAL_ERROR;
+     *ret_len = size;
+     return STATUS_SUCCESS;
++}
++
++/* Opaque key blobs are implementation-private (MSDN: importable only into the
++ * CSP that exported them). Wine only needs them to round-trip within Wine, so we
++ * serialize the fullest standard blob for the key, tagged with a small id that
++ * import uses to recover the inner blob type. */
++#define BCRYPT_WINE_OPAQUE_TAG 0x4b504f57 /* 'WOPK' */
++
++static ULONG opaque_inner_id( const WCHAR *type )
++{
++    if (!wcscmp( type, BCRYPT_RSAFULLPRIVATE_BLOB )) return 1;
++    if (!wcscmp( type, BCRYPT_RSAPUBLIC_BLOB ))      return 2;
++    if (!wcscmp( type, BCRYPT_ECCPRIVATE_BLOB ))     return 3;
++    if (!wcscmp( type, BCRYPT_ECCPUBLIC_BLOB ))      return 4;
++    if (!wcscmp( type, BCRYPT_DSA_PRIVATE_BLOB ))    return 5;
++    if (!wcscmp( type, BCRYPT_DSA_PUBLIC_BLOB ))     return 6;
++    if (!wcscmp( type, BCRYPT_DH_PRIVATE_BLOB ))     return 7;
++    if (!wcscmp( type, BCRYPT_DH_PUBLIC_BLOB ))      return 8;
++    return 0;
+ }
+ 
++static const WCHAR *opaque_inner_type( ULONG id )
++{
++    switch (id)
++    {
++    case 1: return BCRYPT_RSAFULLPRIVATE_BLOB;
++    case 2: return BCRYPT_RSAPUBLIC_BLOB;
++    case 3: return BCRYPT_ECCPRIVATE_BLOB;
++    case 4: return BCRYPT_ECCPUBLIC_BLOB;
++    case 5: return BCRYPT_DSA_PRIVATE_BLOB;
++    case 6: return BCRYPT_DSA_PUBLIC_BLOB;
++    case 7: return BCRYPT_DH_PRIVATE_BLOB;
++    case 8: return BCRYPT_DH_PUBLIC_BLOB;
++    default: return NULL;
++    }
++}
++
+ static NTSTATUS export_asymmetric_key( const struct key *key, const WCHAR *type, UCHAR *output, ULONG output_len,
+                                        ULONG *ret_len )
+ {
+@@ -2727,7 +2762,51 @@
+     {
+         return export_legacy_dsa_key( key, output, output_len, 0, ret_len );
+     }
++    else if (!wcscmp( type, BCRYPT_OPAQUE_KEY_BLOB ))
++    {
++        const ULONG hdr = 2 * sizeof(ULONG);
++        const WCHAR *inner;
++        NTSTATUS status;
++        ULONG inner_len = 0;
+ 
++        switch (key->alg_id)
++        {
++        case ALG_ID_RSA:
++        case ALG_ID_RSA_SIGN:
++            inner = (key->flags & KEY_FLAG_PRIVATE) ? BCRYPT_RSAFULLPRIVATE_BLOB : BCRYPT_RSAPUBLIC_BLOB;
++            break;
++        case ALG_ID_DH:
++            inner = (key->flags & KEY_FLAG_PRIVATE) ? BCRYPT_DH_PRIVATE_BLOB : BCRYPT_DH_PUBLIC_BLOB;
++            break;
++        case ALG_ID_DSA:
++            inner = (key->flags & KEY_FLAG_PRIVATE) ? BCRYPT_DSA_PRIVATE_BLOB : BCRYPT_DSA_PUBLIC_BLOB;
++            break;
++        case ALG_ID_ECDH:
++        case ALG_ID_ECDH_P256:
++        case ALG_ID_ECDH_P384:
++        case ALG_ID_ECDH_P521:
++        case ALG_ID_ECDSA:
++        case ALG_ID_ECDSA_P256:
++        case ALG_ID_ECDSA_P384:
++        case ALG_ID_ECDSA_P521:
++            inner = (key->flags & KEY_FLAG_PRIVATE) ? BCRYPT_ECCPRIVATE_BLOB : BCRYPT_ECCPUBLIC_BLOB;
++            break;
++        default:
++            FIXME( "opaque export unsupported for alg %u\n", key->alg_id );
++            return STATUS_NOT_IMPLEMENTED;
++        }
++
++        if ((status = export_asymmetric_key( key, inner, NULL, 0, &inner_len ))) return status;
++        *ret_len = inner_len + hdr;
++        if (!output) return STATUS_SUCCESS;
++        if (output_len < *ret_len) return STATUS_BUFFER_TOO_SMALL;
++
++        if ((status = export_asymmetric_key( key, inner, output + hdr, output_len - hdr, &inner_len ))) return status;
++        ((ULONG *)output)[0] = BCRYPT_WINE_OPAQUE_TAG;
++        ((ULONG *)output)[1] = opaque_inner_id( inner );
++        return STATUS_SUCCESS;
++    }
++
+     FIXME( "unsupported blob type %s\n", debugstr_w(type) );
+     return STATUS_NOT_IMPLEMENTED;
+ }
+@@ -3384,6 +3463,18 @@
+ {
+     struct key *key;
+     NTSTATUS status;
++
++    if (!wcscmp( type, BCRYPT_OPAQUE_KEY_BLOB ))
++    {
++        const ULONG hdr = 2 * sizeof(ULONG);
++        const WCHAR *inner;
++
++        if (input_len < hdr || ((const ULONG *)input)[0] != BCRYPT_WINE_OPAQUE_TAG)
++            return STATUS_INVALID_PARAMETER;
++        if (!(inner = opaque_inner_type( ((const ULONG *)input)[1] )))
++            return STATUS_NOT_SUPPORTED;
++        return import_key_pair( alg, inner, input + hdr, input_len - hdr, ret_key );
++    }
+ 
+     if (!wcscmp( type, BCRYPT_ECCPUBLIC_BLOB ) || !wcscmp( type, BCRYPT_ECCPRIVATE_BLOB ))
+     {
