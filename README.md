@@ -1,61 +1,37 @@
-# Steam on free Wine on macOS (2026)
+# Steam on Wine on macOS: an upstream patch and a debugging post-mortem
 
-> **Correction (2026-08-22):** An earlier version of this repo claimed the missing bcrypt
-> OpaqueKeyBlob export was *the* cause of modern Steam login failure, and that only Apple's
-> D3DMetal could solve rendering. Both are corrected. The bcrypt gap is real but NOT proven to
-> be the login-blocker; Gcenx (maintainer of the macOS Wine packages) runs the *current* Steam
-> client with a rendering fix alone: a steamwebhelper wrapper forcing `--in-process-gpu`, on the
-> MoltenVK path (his packages are stock apart from a MoltenVK/Vulkan-loader patch; DXMT specifically
-> needs self-compiled Wine). The MAINTAINED path is his official WineHQ macOS packages + that wrapper
-> + the CURRENT Steam client. The recipe below (Mythic engine + an archived client) works and is
-> verified end to end, but uses older components deliberately and is not the recommended path.
+Notes from a night spent debugging why the Steam client fails on Wine on macOS. This repo is two
+things worth keeping:
 
+1. **`wine-patch/`** — a proposed Wine `bcrypt` patch plus a filed WineHQ bug
+   ([60214](https://bugs.winehq.org/show_bug.cgi?id=60214)) for a real, independently valid API gap:
+   `BCryptExportKey`/`BCryptImportKeyPair` do not implement `BCRYPT_OPAQUE_KEY_BLOB` for asymmetric
+   keys (regressed after the post-11.0 PE-crypto rewrite; still missing in master). Status: the gap
+   is verified; the patch is **proposed, not yet built or tested** against the tree.
 
-Steam login and Steam-DRM games working on a fully free Wine stack on Apple Silicon, with the
-root-cause diagnosis of why stock Wine cannot do it. Verified end to end on 2026-08-22 (macOS,
-M4): client login via QR, then a Steam-DRM game (The Wolf Among Us) running.
+2. **The debugging post-mortem** —
+   [Four Wrong Root Causes Before Sunrise](https://dev.to/agentdev9/four-wrong-root-causes-before-sunrise-why-steam-died-on-free-wine-for-macos-and-the-two-2kg2).
+   Four confident wrong root causes, and how a working-vs-failing diff found the real signal. Includes
+   the correction: I initially over-attributed the Steam login failure to the bcrypt gap, which is
+   **not proven**. See the post for the full accounting.
 
-**TL;DR recipe**
+## To actually run Steam on Wine on macOS
 
-1. A GPTk-based Wine (free, includes Apple's D3DMetal). This setup used Mythic Engine, whose
-   manifest lists the current tarball: `https://dl.getmythic.app/engine/EngineUpdateStream.plist`
-2. Fresh prefix, install Steam with a stock `SteamSetup.exe` silently.
-3. Pin the archived early-2025 client BEFORE the first normal launch (one unpinned boot
-   self-updates past the last Wine-compatible client):
-   ```
-   wine64 Steam.exe -forcesteamupdate -forcepackagedownload \
-     -overridepackageurl http://web.archive.org/web/20250311093241if_/media.steampowered.com/client \
-     -exitsteam
-   ```
-   Then verify `logs/bootstrap_log.txt` shows `steam_client_win32` at a `202503` timestamp
-   (client build 1737514353). The Wayback Machine silently redirects the win64 manifest to a
-   Dec 2025 snapshot that still fails; the win32 manifest at this timestamp is the working one.
-4. Always launch frozen:
-   ```
-   wine64 Steam.exe -noverifyfiles -nobootstrapupdate -norepairfiles \
-     -overridepackageurl <same URL>
-   ```
-5. Optional, to avoid re-downloading games: pull once with SteamCMD
-   (`+@sSteamCmdForcePlatformType windows`), then symlink into `C:\SteamLibrary\steamapps\common\`
-   plus copy the appmanifest and register the library in `libraryfolders.vdf`.
+Use the maintained path, not the scripts in this repo. Per Gcenx (who maintains the official WineHQ
+macOS packages): the official packages plus a small **steamwebhelper wrapper forcing
+`--in-process-gpu`** run the **current** Steam client on the MoltenVK renderer. DXMT is a separate,
+self-compiled-Wine alternative. Discussion and details:
+[Gcenx/macOS_Wine_builds#159](https://github.com/Gcenx/macOS_Wine_builds/issues/159).
 
-Never run two Steam clients at once (native macOS Steam included): the second client's
-networking fails completely and looks like a broken install.
+## `scripts/` (kept for reference, NOT recommended)
 
-The `scripts/` folder wraps these steps. The commands are verbatim from the verified session;
-the wrapper scripts themselves are convenience.
+These wrap what I actually ran the night of the post: a GPTk-based Wine (Mythic engine) plus an
+**archived early-2025 Steam client** pinned from the Wayback Machine. It works end to end, but it
+deliberately uses outdated components and the maintainer reasonably does not recommend running an
+outdated third-party Wine against an outdated client. Prefer the maintained path above. The one
+durable gotcha if you ever do pin an archived client: verify `logs/bootstrap_log.txt` shows
+`steam_client_win32` at a `202503` timestamp, because the Wayback Machine silently redirects the
+win64 manifest to a later snapshot that still fails.
 
-**Why stock Wine fails** (short version; full diagnosis in `docs/diagnosis.md`):
-
-- Auth: upstream Wine dropped its gnutls-backed CNG unixlib after 11.6. Steam's device-key auth
-  calls `BCryptExportKey(BCRYPT_OPAQUE_KEY_BLOB)` on an asymmetric key, gets
-  STATUS_NOT_IMPLEMENTED, and every auth session (QR included) dies locally while the client's
-  own connection looks healthy. Still unimplemented in Wine master as of Aug 2026.
-- Rendering: Steam's CEF wants a GLES 3.0 context; ANGLE's D3D11 renderer on wined3d-on-GL caps
-  at 2.0 (black window). DXMT does not rescue CEF: cross-process swapchains are unsupported.
-  Apple's D3DMetal handles both, which is why GPTk-based Wine (and CrossOver) render.
-
-Related: the same client pin revives Whisky, whose repo is archived; see
-[whisky-resurrection](https://github.com/egnaro9/whisky-resurrection).
-Posted as a comment on Gcenx/macOS_Wine_builds#159, and filed upstream as
-WineHQ bug 60214: https://bugs.winehq.org/show_bug.cgi?id=60214
+Related: [whisky-resurrection](https://github.com/egnaro9/whisky-resurrection) revives the
+discontinued Whisky app from its archived runtime (verified, uncontested).
