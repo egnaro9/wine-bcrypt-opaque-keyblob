@@ -4,8 +4,11 @@
 > OpaqueKeyBlob export was *the* cause of modern Steam login failure, and that only Apple's
 > D3DMetal could solve rendering. Both are corrected. The bcrypt gap is real but NOT proven to
 > be the login-blocker; Gcenx (maintainer of the macOS Wine packages) runs the *current* Steam
-> client with a rendering fix alone: a steamwebhelper wrapper forcing `--in-process-gpu` so DXMT
-> works. The free recipe below is still verified end to end.
+> client with a rendering fix alone: a steamwebhelper wrapper forcing `--in-process-gpu`, on the
+> MoltenVK path (his packages are stock apart from a MoltenVK/Vulkan-loader patch; DXMT specifically
+> needs self-compiled Wine). The MAINTAINED path is his official WineHQ macOS packages + that wrapper
+> + the CURRENT Steam client. The recipe below (Mythic engine + an archived client) works and is
+> verified end to end, but uses older components deliberately and is not the recommended path.
 
 
 Steam login and Steam-DRM games working on a fully free Wine stack on Apple Silicon, with the
