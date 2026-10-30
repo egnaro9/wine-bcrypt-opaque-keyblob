@@ -35,3 +35,8 @@ win64 manifest to a later snapshot that still fails.
 
 Related: [whisky-resurrection](https://github.com/egnaro9/whisky-resurrection) revives the
 discontinued Whisky app from its archived runtime (verified, uncontested).
+
+## License
+
+The Wine patch and test in `wine-patch/` are LGPL-2.1-or-later, the same terms as Wine (see
+`wine-patch/LICENSE`). Everything else in this repository is copyright Erik Hill, all rights reserved.

@@ -1,0 +1,8 @@
+SPDX-License-Identifier: LGPL-2.1-or-later
+
+Copyright 2026 Erik Hill
+
+The patch and test in this folder (0001-bcrypt-opaque-asymmetric-key-blob.patch and
+SUGGESTED-TEST.c) modify Wine and are offered under the GNU Lesser General Public License,
+version 2.1 or (at your option) any later version, the same terms as Wine itself.
+Wine's license text: https://gitlab.winehq.org/wine/wine/-/blob/master/COPYING.LIB
